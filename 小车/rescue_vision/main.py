@@ -17,7 +17,6 @@ from config import (
     ELECTRONIC_CONTROL_CONFIG  # 电控系统通信配置
 )
 
-# 导入自定义模块
 from camera_capture import init_camera, get_frame # 相机捕获模块
 from object_detection import ObjectDetector  # 目标检测模块
 from server import VideoStreaming  # 视频流传输模块
@@ -27,9 +26,7 @@ from server import VideoStreaming  # 视频流传输模块
 
 team_color = "red"
 
-# 初始化相机和检测器
-# 初始化相机
-# 初始化角度和距离为0
+
 ball_info = [0, 0]  # 默认[角度,距离]
 safe_zone_angle = 0  # 初始化安全区角度为0
 safe_zone_distance = 0  # 初始化安全区距离为0
@@ -45,8 +42,8 @@ detector = ObjectDetector()
 # 串口用于与电控系统进行数据交换
 try:
     # 从配置中获取串口参数
-    serial_port = ELECTRONIC_CONTROL_CONFIG["serial_port"] # 从配置文件读取串口设备路径
-    baud_rate = ELECTRONIC_CONTROL_CONFIG["baud_rate"]  # 从配置文件读取波特率
+    serial_port = "/dev/ttyS0" # 从配置文件读取串口设备路径
+    baud_rate = 9600  # 从配置文件读取波特率
     timeout = 1
     time.sleep(2)        # 超时时间，单位秒
     
@@ -54,19 +51,16 @@ try:
     ser = serial.Serial(
         port=serial_port, 
         baudrate=baud_rate, 
-        parity=serial.PARITY_NONE, 
-        stopbits=serial.STOPBITS_ONE, 
-        bytesize=serial.EIGHTBITS, 
-        timeout=timeout
+        timeout=0.5
     )
     
     # 检查串口是否成功打开
     if ser.is_open:
-        print(f"串口 {serial_port} 已成功打开，波特率: {baud_rate}")
+        print(f"串口已打开")
         
         serial_enabled = True  # 标记串口可用
     else:
-        print(f"串口 {serial_port} 已创建但未打开")
+        print(f"串口但未打开")
         serial_enabled = False
 
 except Exception as e:
