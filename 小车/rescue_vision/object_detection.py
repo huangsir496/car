@@ -12,8 +12,8 @@ class ObjectDetector:
         self.circularity_threshold = TARGET_CONFIG.get("circularity_threshold", 0.7)  # 圆形度阈值
         
         # 像素-距离转换参数
-        self.pixel_distance_scale = 15000  # 缩放因子
-        self.pixel_distance_offset = 0  # 偏移量
+        self.pixel_distance_scale = VISION_CONFIG.get("ball_distance_scale", 15000)  # 缩放因子
+        self.pixel_distance_offset = VISION_CONFIG.get("ball_distance_offset", 0)  # 偏移量
         
         # 高斯滤波参数 - 保留此功能
         self.gaussian_blur_ksize = VISION_CONFIG.get("gaussian_blur_ksize", (5, 5))

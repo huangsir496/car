@@ -1,8 +1,8 @@
-import cv2
+#不需要cv2，因为只需要处理图像，树莓派不显示这玩意
 import numpy as np
-import time
+import time   
 import math
-import serial
+
 
 # 从配置文件导入配置参数
 from config import (
