@@ -27,7 +27,7 @@ from server import VideoStreaming  # 视频流传输模块
 team_color = "red"
 
 
-ball_info = [0, 0]  # 默认[角度,距离]
+ball_info = [0, 0, 0]  # 默认[水平角度,垂直角度,距离]
 safe_zone_angle = 0  # 初始化安全区角度为0
 safe_zone_distance = 0  # 初始化安全区距离为0
 # 初始化相机
@@ -39,7 +39,7 @@ if not camera_init_success:
 detector = ObjectDetector()
 
 # 初始化串口通信
-# 串口用于与电控系统进行数据交换
+
 try:
     # 从配置中获取串口参数
     serial_port = "/dev/ttyS0" # 从配置文件读取串口设备路径
@@ -64,7 +64,7 @@ try:
         serial_enabled = False
 
 except Exception as e:
-    # 处理串口打开失败的情况
+    
     print(f"无法打开串口: {e}")
     ser = None
     serial_enabled = False
@@ -83,14 +83,14 @@ while True:
                 
                 if not date:
                     # 发送默认响应，确保电控能收到回复
-                    default_response = "[0,0]"
+                    default_response = "[0,0,0]"
                     ser.write(default_response.encode('utf-8'))
                     print(f"未识别命令，发送默认响应: {default_response}")  
                 
                 elif "[FindTeamColor]" in date:   
                     target_color = team_color  # 首先使用队伍颜色
                     balls = []
-                    ball_info = [0, 0]  # 默认[角度,距离]
+                    ball_info = [0, 0, 0]  # 默认[水平角度,垂直角度,距离]
                     if frame is not None:
                         balls, mask = detector.detect_color(frame, target_color)
                     
@@ -102,15 +102,24 @@ while True:
                         
                         # 计算角度
                         img_center_x = CAMERA_CONFIG["resolution"][0] / 2  # 图像中心点x坐标
+                        img_center_y = CAMERA_CONFIG["resolution"][1] / 2  # 图像中心点y坐标
+                        
+                        # 水平角度计算
                         horizontal_offset = cx - img_center_x  # 水平方向偏移
                         fov_horizontal = CAMERA_CONFIG.get("horizontal_fov", 60)  # 水平视场角
-                        angle_per_pixel = fov_horizontal / CAMERA_CONFIG["resolution"][0]  # 每像素对应的角度
-                        angle = horizontal_offset * angle_per_pixel  # 计算角度
+                        angle_per_pixel_horizontal = fov_horizontal / CAMERA_CONFIG["resolution"][0]  # 每像素对应的水平角度
+                        horizontal_angle = horizontal_offset * angle_per_pixel_horizontal  # 计算水平角度
                         
-                        ball_info = [int(angle), int(distance_cm)]
+                        # 垂直角度计算
+                        vertical_offset = img_center_y - cy  # 垂直方向偏移（上为正，下为负）
+                        fov_vertical = CAMERA_CONFIG.get("vertical_fov", 45)  # 垂直视场角
+                        angle_per_pixel_vertical = fov_vertical / CAMERA_CONFIG["resolution"][1]  # 每像素对应的垂直角度
+                        vertical_angle = vertical_offset * angle_per_pixel_vertical  # 计算垂直角度
+                        
+                        ball_info = [int(horizontal_angle), int(vertical_angle), int(distance_cm)]
                     
-                    # 按照指定格式构建响应数据：[角度,距离]
-                    response_data = f"[{ball_info[0]},{ball_info[1]}]"
+                    # 按照指定格式构建响应数据：[水平角度,垂直角度,距离]
+                    response_data = f"[{ball_info[0]},{ball_info[1]},{ball_info[2]}]"
                     ser.write(response_data.encode('utf-8'))
                     print(f"收到[FindTeamColor]命令，发送响应: {response_data}")
                 
@@ -144,15 +153,24 @@ while True:
                         
                         # 计算角度
                         img_center_x = CAMERA_CONFIG["resolution"][0] / 2  # 图像中心点x坐标
+                        img_center_y = CAMERA_CONFIG["resolution"][1] / 2  # 图像中心点y坐标
+                        
+                        # 水平角度计算
                         horizontal_offset = cx - img_center_x  # 水平方向偏移
                         fov_horizontal = CAMERA_CONFIG.get("horizontal_fov", 60)  # 水平视场角
-                        angle_per_pixel = fov_horizontal / CAMERA_CONFIG["resolution"][0]  # 每像素对应的角度
-                        angle = horizontal_offset * angle_per_pixel  # 计算角度
+                        angle_per_pixel_horizontal = fov_horizontal / CAMERA_CONFIG["resolution"][0]  # 每像素对应的水平角度
+                        horizontal_angle = horizontal_offset * angle_per_pixel_horizontal  # 计算水平角度
                         
-                        ball_info = [int(angle), int(distance_cm)]
+                        # 垂直角度计算
+                        vertical_offset = img_center_y - cy  # 垂直方向偏移（上为正，下为负）
+                        fov_vertical = CAMERA_CONFIG.get("vertical_fov", 45)  # 垂直视场角
+                        angle_per_pixel_vertical = fov_vertical / CAMERA_CONFIG["resolution"][1]  # 每像素对应的垂直角度
+                        vertical_angle = vertical_offset * angle_per_pixel_vertical  # 计算垂直角度
+                        
+                        ball_info = [int(horizontal_angle), int(vertical_angle), int(distance_cm)]
                 
-                    # 按照指定格式构建响应数据：[角度,距离]
-                    response_data = f"[{ball_info[0]},{ball_info[1]}]"
+                    # 按照指定格式构建响应数据：[水平角度,垂直角度,距离]
+                    response_data = f"[{ball_info[0]},{ball_info[1]},{ball_info[2]}]"
                     ser.write(response_data.encode('utf-8'))
                     print(f"收到[FindBall]命令，发送响应: {response_data}")
                 
