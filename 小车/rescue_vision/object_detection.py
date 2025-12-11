@@ -1,6 +1,6 @@
 import cv2
 import numpy as np
-from config import COLOR_RANGES, TARGET_CONFIG, VISION_CONFIG
+from config import COLOR_RANGES, TARGET_CONFIG, VISION_CONFIG, SAFE_ZONE_CONFIG
 
 class ObjectDetector:
     def __init__(self):
@@ -21,6 +21,12 @@ class ObjectDetector:
         
         # 简化的形态学处理参数
         self.kernel = np.ones((3, 3), np.uint8)
+        
+        # 安全区检测参数
+        self.safe_zone_min_area = SAFE_ZONE_CONFIG.get("min_area", 500)
+        self.safe_zone_max_area = SAFE_ZONE_CONFIG.get("max_area", 50000)
+        self.safe_zone_aspect_ratio_min = SAFE_ZONE_CONFIG.get("aspect_ratio_min", 2)
+        self.safe_zone_aspect_ratio_max = SAFE_ZONE_CONFIG.get("aspect_ratio_max", 4)
 
     def calculate_distance(self, ball_diameter_pixels):
         """根据球体在图像中的直径计算实际距离
@@ -146,40 +152,72 @@ class ObjectDetector:
         return targets, mask
 
     def detect_safe_zone(self, frame, team_color=None):
-        """简化的安全区检测"""
+        """改进的安全区检测，避免将小球误识别为安全区"""
         # 应用高斯滤波
         blurred_frame = cv2.GaussianBlur(frame, self.gaussian_blur_ksize, self.gaussian_blur_sigma)
         
         # 转换到HSV色彩空间
         hsv = cv2.cvtColor(blurred_frame, cv2.COLOR_BGR2HSV)
         
-        # 创建安全区掩码 - 默认检测红蓝色
-        red_mask1 = cv2.inRange(hsv, np.array([0, 120, 70]), np.array([10, 255, 255]))
-        red_mask2 = cv2.inRange(hsv, np.array([170, 120, 70]), np.array([180, 255, 255]))
-        red_mask = cv2.bitwise_or(red_mask1, red_mask2)
-        blue_mask = cv2.inRange(hsv, np.array([110, 120, 70]), np.array([130, 255, 255]))
-        safe_mask = cv2.bitwise_or(red_mask, blue_mask)
+        # 根据队伍颜色创建安全区掩码
+        safe_mask = np.zeros(hsv.shape[:2], dtype=np.uint8)
         
-        # 简单形态学处理
-        safe_mask = cv2.dilate(safe_mask, self.kernel, iterations=1)
-        safe_mask = cv2.erode(safe_mask, self.kernel, iterations=1)
+        if team_color == "red" or team_color is None:
+            # 红色安全区，使用配置文件中的颜色阈值
+            red_data = self.color_ranges.get("red", [0, 120, 70, 10, 255, 255, 170, 120, 70, 180, 255, 255])
+            if len(red_data) == 12:
+                # 格式: [H1_min, S1_min, V1_min, H1_max, S1_max, V1_max, H2_min, S2_min, V2_min, H2_max, S2_max, V2_max]
+                red_mask1 = cv2.inRange(hsv, np.array(red_data[:3]), np.array(red_data[3:6]))
+                red_mask2 = cv2.inRange(hsv, np.array(red_data[6:9]), np.array(red_data[9:12]))
+                red_mask = cv2.bitwise_or(red_mask1, red_mask2)
+                safe_mask = cv2.bitwise_or(safe_mask, red_mask)
+        
+        if team_color == "blue" or team_color is None:
+            # 蓝色安全区，使用配置文件中的颜色阈值
+            blue_data = self.color_ranges.get("blue", [110, 120, 70, 130, 255, 255])
+            if len(blue_data) == 6:
+                # 格式: [H_min, S_min, V_min, H_max, S_max, V_max]
+                blue_mask = cv2.inRange(hsv, np.array(blue_data[:3]), np.array(blue_data[3:]))
+                safe_mask = cv2.bitwise_or(safe_mask, blue_mask)
+        
+        # 改进的形态学处理，增强噪声去除能力
+        safe_mask = cv2.dilate(safe_mask, self.kernel, iterations=2)
+        safe_mask = cv2.erode(safe_mask, self.kernel, iterations=2)
         
         # 查找轮廓
         contours, _ = cv2.findContours(safe_mask, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
         safe_zone = None
+        contour_area = 0
         
         for cnt in contours:
             area = cv2.contourArea(cnt)
-            if area < self.min_contour_area * 2:  # 安全区通常比球体大
+            
+            # 1. 面积判断：安全区应该比小球大，且在合理范围内
+            if area < self.safe_zone_min_area or area > self.safe_zone_max_area:
                 continue
             
             # 获取外接矩形
             x, y, w, h = cv2.boundingRect(cnt)
             
-            # 简化的安全区判断 - 寻找较大的区域
-            if w > 50 and h > 20:  # 假设安全区有一定的大小
-                safe_zone = (x, y, w, h)
-                break  # 找到第一个符合条件的区域就返回
+            # 2. 尺寸判断：安全区应该有一定的高度和宽度
+            if w < 10 or h < 3:  # 进一步降低最小宽度和高度的要求，更容易识别矩形安全区
+                continue
+            
+            # 3. 长宽比判断：安全区应该是长条形的，长宽比在配置范围内
+            aspect_ratio = w / h if h > 0 else 0
+            if aspect_ratio < self.safe_zone_aspect_ratio_min or aspect_ratio > self.safe_zone_aspect_ratio_max:
+                continue
+            
+            # 4. 圆形度判断：小球是圆形的，安全区应该是非圆形的（更严格的条件）
+            perimeter = cv2.arcLength(cnt, True)
+            circularity = 4 * np.pi * area / (perimeter ** 2) if perimeter > 0 else 0
+            if circularity > 0.3:  # 降低圆形度阈值，更严格地排除圆形物体
+                continue
+            
+            # 所有条件都满足，认为是安全区
+            safe_zone = (x, y, w, h)
+            contour_area = area
+            break  # 找到第一个符合条件的区域就返回
         
-        return safe_zone
+        return safe_zone, contour_area
     

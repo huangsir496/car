@@ -9,7 +9,8 @@ from config import (
     CAMERA_CONFIG,       # 相机参数配置
     VISION_CONFIG,       # 视觉处理配置
     COLOR_RANGES,        # 颜色HSV阈值范围配置
-    ELECTRONIC_CONTROL_CONFIG  # 电控系统通信配置
+    ELECTRONIC_CONTROL_CONFIG,  # 电控系统通信配置
+    SAFE_ZONE_CONFIG     # 安全区检测配置
 )
 
 from camera_capture import init_camera, get_frame # 相机捕获模块
@@ -172,47 +173,47 @@ while True:
                     print("收到[FindPlace]命令,开始检测安全区")
                     if frame is not None:
                         # 调用detect_safe_zone方法检测安全区，并传入队伍颜色参数
-                        safe_zone = detector.detect_safe_zone(frame, team_color)
+                        safe_zone, contour_area = detector.detect_safe_zone(frame, team_color)
+                
+                if safe_zone is not None:  # 如果检测到安全区
+                    x, y, w, h = safe_zone  # 解包安全区的坐标和大小 [x,y,width,height]
                     
-                    if safe_zone is not None:  # 如果检测到安全区
-                        x, y, w, h = safe_zone  # 解包安全区的坐标和大小 [x,y,width,height]
+                    # 计算安全区中心坐标
+                    cx = x + w // 2  # 安全区中心x坐标
+                    cy = y + h // 2  # 安全区中心y坐标
+                    
+                    # 计算角度：基于图像中心点的偏移
+                    img_center_x = CAMERA_CONFIG["resolution"][0] / 2  # 图像中心点x坐标
+                    horizontal_offset = cx - img_center_x  # 水平方向偏移量
+                    
+                    # 角度计算
+                    fov_horizontal = 60  # 水平视场角（度）
+                    angle_per_pixel = fov_horizontal / CAMERA_CONFIG["resolution"][0]  # 每像素对应的角度
+                    safe_zone_angle = horizontal_offset * angle_per_pixel  # 计算安全区相对于中心的角度
+                    
+                    # 简单估算距离
+                    # 核心原理：安全区在图像中的尺寸与距离成反比
+                    # 距离越近，在图像中看起来越大；距离越远，在图像中看起来越小
+                    safe_zone_area = contour_area  # 使用实际轮廓面积
                         
-                        # 计算安全区中心坐标
-                        cx = x + w // 2  # 安全区中心x坐标
-                        cy = y + h // 2  # 安全区中心y坐标
-                        
-                        # 计算角度：基于图像中心点的偏移
-                        img_center_x = CAMERA_CONFIG["resolution"][0] / 2  # 图像中心点x坐标
-                        horizontal_offset = cx - img_center_x  # 水平方向偏移量
-                        
-                        # 角度计算
-                        fov_horizontal = 60  # 水平视场角（度）
-                        angle_per_pixel = fov_horizontal / CAMERA_CONFIG["resolution"][0]  # 每像素对应的角度
-                        safe_zone_angle = horizontal_offset * angle_per_pixel  # 计算安全区相对于中心的角度
-                        
-                        # 简单估算距离
-                        # 核心原理：安全区在图像中的尺寸与距离成反比
-                        # 距离越近，在图像中看起来越大；距离越远，在图像中看起来越小
-                        safe_zone_area = w * h  # 计算安全区的面积（像素²）
-                        
-                        # 距离计算参数
-                        base_distance = 520.0  # 基础距离（毫米）
-                        base_area = 32214  # 基础面积（像素²）
+                        # 从配置文件获取距离计算参数
+                    base_distance = SAFE_ZONE_CONFIG["base_distance"]  # 基础距离（毫米）
+                    base_area = SAFE_ZONE_CONFIG["base_area"]  # 基础面积（像素²）
                         
                         # 使用面积的倒数关系估算距离，并转换为厘米
                         # 避免除零错误，使用max确保分母至少为1
-                        safe_zone_distance = int((base_area / max(safe_zone_area, 1)) * base_distance / 10)
+                    safe_zone_distance = int((base_area / max(safe_zone_area, 1)) * base_distance / 10)
                         
                         # 打印调试信息
-                        print(f"检测到安全区，位置: ({cx}, {cy}), 角度: {safe_zone_angle:.1f}°, 距离: {safe_zone_distance}cm")
-                    else:
+                    print(f"检测到安全区，位置: ({cx}, {cy}), 角度: {safe_zone_angle:.1f}°, 距离: {safe_zone_distance}cm")
+                else:
                         # 如果没有检测到安全区
                         print("未检测到安全区")
                     
-                    response_data = f"[{int(safe_zone_angle)},{safe_zone_distance}]"
+                        response_data = f"[{int(safe_zone_angle)},{safe_zone_distance}]"
                     # 发送响应给电控系统
-                    ser.write(response_data.encode('utf-8'))
-                    print(f"收到[FindPlace]命令，发送响应: {response_data}")
+                        ser.write(response_data.encode('utf-8'))
+                        print(f"收到[FindPlace]命令，发送响应: {response_data}")
             except Exception as e:
                 # 捕获并打印串口通信错误
                 print(f"串口通信错误: {e}")
