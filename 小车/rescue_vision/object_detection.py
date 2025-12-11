@@ -15,7 +15,7 @@ class ObjectDetector:
         self.pixel_distance_scale = VISION_CONFIG.get("ball_distance_scale", 15000)  # 缩放因子
         self.pixel_distance_offset = VISION_CONFIG.get("ball_distance_offset", 0)  # 偏移量
         
-        # 高斯滤波参数 - 保留此功能
+        # 高斯滤波参数 
         self.gaussian_blur_ksize = VISION_CONFIG.get("gaussian_blur_ksize", (5, 5))
         self.gaussian_blur_sigma = VISION_CONFIG.get("gaussian_blur_sigma", 1)
         

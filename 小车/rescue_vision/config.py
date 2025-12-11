@@ -2,7 +2,6 @@
 CAMERA_CONFIG = {
     "resolution": (640, 480),  # 相机分辨率
     "horizontal_fov": 60,       # 水平视场角（度），听说这个可以不用设置
-    "vertical_fov": 45,         # 垂直视场角（度）
                }
 
 # 目标参数配置
@@ -22,12 +21,7 @@ COLOR_RANGES = {
     "white": [(0, 0, 200), (180, 255, 255)],  # white目标，配置方法：在实际环境下调整H值
 }
 
-#串口
-ELECTRONIC_CONTROL_CONFIG = {
-    "enabled": True,           
-    "serial_port": "/dev/ttyS0", # 树莓派上的串口路径
-    "baud_rate": 9600,        # 串口波特率
-}
+
 
 # 视觉处理配置，这里很多设置都是多余的，用于测试用的代码
 VISION_CONFIG = {
