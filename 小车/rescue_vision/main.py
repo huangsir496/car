@@ -1,12 +1,7 @@
-# cv2: OpenCV库，用于图像处理和计算机视觉
 import cv2
-# numpy: 数值计算库，用于数组操作
 import numpy as np
-# time: 时间处理库，用于延时和计时
 import time
-# math: 数学函数库，用于数学计算
 import math
-# serial: 串口通信库，用于与电控系统通信
 import serial
 
 # 从配置文件导入配置参数
@@ -19,7 +14,7 @@ from config import (
 
 from camera_capture import init_camera, get_frame # 相机捕获模块
 from object_detection import ObjectDetector  # 目标检测模块
-from server import VideoStreaming  # 视频流传输模块
+
 
 
 # 配置队伍颜色
@@ -27,14 +22,14 @@ from server import VideoStreaming  # 视频流传输模块
 team_color = "red"
 
 
-ball_info = [0, 0, 0]  # 默认[水平角度,垂直角度,距离]
+ball_info = [0, 0, 0]  # 默认[水平角度,垂直角度,距离]#垂直角度是刚刚新添加上去的
 safe_zone_angle = 0  # 初始化安全区角度为0
 safe_zone_distance = 0  # 初始化安全区距离为0
 # 初始化相机
 camera_init_success = init_camera()
 if not camera_init_success:
     print("相机初始化失败，但程序将继续运行串口通信部分")
-    # 不退出程序，允许继续运行串口通信
+
 # 创建目标检测器对象，用于识别球体和安全区域
 detector = ObjectDetector()
 
@@ -44,8 +39,8 @@ try:
     # 从配置中获取串口参数
     serial_port = "/dev/ttyS0" # 从配置文件读取串口设备路径
     baud_rate = 9600  # 从配置文件读取波特率
-    timeout = 1
-    time.sleep(2)        # 超时时间，单位秒
+    timeout = 1   #让它初始化完成后再进行识别，防止乱码
+          
     
     # 打开串口，显式设置所有参数
     ser = serial.Serial(
@@ -78,12 +73,11 @@ while True:
         # 检查串口是否可用
         if serial_enabled and ser is not None:
             try:
-                date = ser.readline().decode('utf-8').strip()
-                time.sleep(0.1)
+                date = ser.readline().decode('utf-8').strip() #读取
+                time.sleep(0.05)#等待0.05秒，确保数据完整
                 
                 if not date:
-                    # 发送默认响应，确保电控能收到回复
-                    default_response = "[0,0,0]"
+                    default_response = "[0,0,0]"#初始化回复
                     ser.write(default_response.encode('utf-8'))
                     print(f"未识别命令，发送默认响应: {default_response}")  
                 
@@ -146,8 +140,8 @@ while True:
                             target_color = "yellow"
                 
                     if balls:
-                        # 找出最近的球（根据距离排序）
-                        closest_ball = min(balls, key=lambda x: x[2])
+                        
+                        closest_ball = min(balls, key=lambda x: x[2])#找出最近的球
                         cx, cy, distance, _ = closest_ball  # 解包：中心x坐标、中心y坐标、距离（毫米），多加一点忽略像素直径
                         distance_cm = distance / 10.0  # 转换为厘米
                         
@@ -157,7 +151,7 @@ while True:
                         
                         # 水平角度计算
                         horizontal_offset = cx - img_center_x  # 水平方向偏移
-                        fov_horizontal = CAMERA_CONFIG.get("horizontal_fov", 60)  # 水平视场角
+                        fov_horizontal = CAMERA_CONFIG.get("horizontal_fov", 60)  # 水平视场角，其实默认本身就是60度
                         angle_per_pixel_horizontal = fov_horizontal / CAMERA_CONFIG["resolution"][0]  # 每像素对应的水平角度
                         horizontal_angle = horizontal_offset * angle_per_pixel_horizontal  # 计算水平角度
                         
@@ -232,10 +226,7 @@ while True:
         print(f"主循环发生错误: {e}")
         break
 
-# 程序结束时的资源释放
-# 关闭所有OpenCV创建的窗口 - 注释掉图形界面相关代码
-
-# 只在相机初始化成功的情况下释放相机资源
+#释放相机
 if camera_init_success:
     try:
         import camera_capture
@@ -246,10 +237,10 @@ if camera_init_success:
         print(f"释放相机资源时出错: {e}")
 print("程序结束")
 
-# 关闭串口连接（如果启用了串口）
+# 关闭串口连接
 if serial_enabled and ser is not None:
     try:
         ser.close()  # 关闭串口
         print("串口已关闭")
-    except:  # 捕获可能的异常
-        pass  # 静默处理异常
+    except Exception as e:
+        print(f"关闭串口时出错: {e}")
